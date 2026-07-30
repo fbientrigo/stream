@@ -1,0 +1,8 @@
+{
+    "name": "stream",
+    "description": "Repositorio de plugins en español para Cloudstream (Cuevana, PelisPlusHD y más)",
+    "manifestVersion": 1,
+    "pluginLists": [
+      "https://raw.githubusercontent.com/fbientrigo/stream/builds/plugins.json"
+    ]
+}
