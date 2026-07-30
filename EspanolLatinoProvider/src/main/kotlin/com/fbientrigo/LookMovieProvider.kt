@@ -5,17 +5,16 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
-// Los clones de Cuevana cambian de dominio y de plantilla con frecuencia.
-// Esta implementación cubre los selectores más comunes vistos en ese tipo de
-// sitios (listas "MovieList"/"TPost" y reproductores servidos por
-// "TPlayerNv"/iframe directo). Si el sitio cambia de estructura, es aquí
-// donde hay que ajustar los selectores.
-//
-// Cuevana.com.es y Cuevana3.gs son el mismo software con dominios distintos,
-// así que comparten toda la lógica de scraping y solo cambian mainUrl/name.
-open class CuevanaCloneProvider : MainAPI() {
-    override var mainUrl = "https://cuevana.com.es"
-    override var name = "Cuevana"
+// AVISO: LookMovie es de los sitios más difíciles de scrapear del grupo:
+// usa Cloudflare delante y buena parte del listado se arma con JavaScript
+// en el cliente, algo que Jsoup (usado por app.get(...).document) no
+// ejecuta. Esta implementación cubre el caso en que el HTML venga
+// server-side-rendered; si getMainPage()/search() devuelven listas vacías
+// en la práctica, lo más probable es que haga falta apuntar a su API JSON
+// interna en lugar de parsear HTML.
+class LookMovieProvider : MainAPI() {
+    override var mainUrl = "https://www.lookmovie2.to"
+    override var name = "LookMovie"
     override var lang = "es"
     override val hasMainPage = true
     override val hasChromecastSupport = true
@@ -27,14 +26,14 @@ open class CuevanaCloneProvider : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val href = fixUrlNull(this.selectFirst("a")?.attr("href")) ?: return null
-        val title = this.selectFirst("h2.Title, h3.Title, .Title")?.text()?.trim()
+        val title = this.selectFirst("h2, h3, .title")?.text()?.trim()
             ?: this.selectFirst("img")?.attr("alt")?.trim()?.ifBlank { null }
             ?: return null
         val posterUrl = fixUrlNull(
             this.selectFirst("img")?.attr("data-src")?.ifBlank { null }
                 ?: this.selectFirst("img")?.attr("src")
         )
-        val type = if (href.contains("/serie")) TvType.TvSeries else TvType.Movie
+        val type = if (href.contains("/shows/") || href.contains("/tv/")) TvType.TvSeries else TvType.Movie
         return newMovieSearchResponse(title, href, type) {
             this.posterUrl = posterUrl
         }
@@ -42,13 +41,13 @@ open class CuevanaCloneProvider : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val urls = listOf(
-            Pair("$mainUrl/peliculas", "Películas"),
-            Pair("$mainUrl/series", "Series"),
+            Pair("$mainUrl/movies", "Películas"),
+            Pair("$mainUrl/shows", "Series"),
         )
         val items = urls.mapNotNull { (url, sectionName) ->
             try {
                 val doc = app.get(url).document
-                val list = doc.select("ul.MovieList li article, div.Posters article, article.item")
+                val list = doc.select("div.movie-item, article, div.media-item")
                     .mapNotNull { it.toSearchResult() }
                 if (list.isEmpty()) null else HomePageList(sectionName, list)
             } catch (e: Exception) {
@@ -60,25 +59,23 @@ open class CuevanaCloneProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val doc = app.get("$mainUrl/?s=$query").document
-        return doc.select("ul.MovieList li article, article.item, div.result-item")
-            .mapNotNull { it.toSearchResult() }
+        val doc = app.get("$mainUrl/search?q=$query").document
+        return doc.select("div.movie-item, article, div.media-item").mapNotNull { it.toSearchResult() }
     }
 
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url).document
-        val title = doc.selectFirst("h1.Title, div.data h1, h1")?.text()?.trim()
+        val title = doc.selectFirst("h1")?.text()?.trim()
             ?: throw ErrorLoadingException("No se encontró el título")
-        val poster = fixUrlNull(doc.selectFirst("div.Image img, div.poster img")?.attr("src"))
-        val plot = doc.selectFirst("div.Description p, div.wp-content p")?.text()?.trim()
-        val tags = doc.select("ul.InfoList a, div.sgeneros a").map { it.text() }
+        val poster = fixUrlNull(doc.selectFirst("div.poster img, .movie-poster img")?.attr("src"))
+        val plot = doc.selectFirst("div.description, .movie-description p")?.text()?.trim()
+        val tags = doc.select("div.genres a, .movie-genres a").map { it.text() }
 
-        val episodes = doc.select("ul.episodios li, div.TPTblCn tr").mapNotNull { el ->
+        val episodes = doc.select("div.episode-item, li.episode").mapNotNull { el ->
             val epHref = fixUrlNull(el.selectFirst("a")?.attr("href")) ?: return@mapNotNull null
-            val epTitle = el.selectFirst(".episodiotitle a, .epl-title, td.MvTbTtl a")?.text()?.trim()
-            val numerando = el.selectFirst(".numerando, td.MvTbNum")?.text()
-            val season = numerando?.split("-")?.getOrNull(0)?.trim()?.toIntOrNull()
-            val episode = numerando?.split("-")?.getOrNull(1)?.trim()?.toIntOrNull()
+            val epTitle = el.selectFirst(".episode-title")?.text()?.trim()
+            val season = el.attr("data-season").toIntOrNull()
+            val episode = el.attr("data-episode").toIntOrNull()
             newEpisode(epHref) {
                 this.name = epTitle
                 this.season = season
@@ -110,8 +107,7 @@ open class CuevanaCloneProvider : MainAPI() {
         val doc = app.get(data).document
         var found = false
 
-        // 1) iframe directo embebido en la página de reproducción
-        doc.select("div.Video iframe, div.movie_player iframe, #Video iframe").forEach { iframe ->
+        doc.select("iframe").forEach { iframe ->
             val src = iframe.attr("src").ifBlank { iframe.attr("data-src") }
             if (src.isNotBlank()) {
                 loadExtractor(fixUrl(src), data, subtitleCallback, callback)
@@ -119,29 +115,16 @@ open class CuevanaCloneProvider : MainAPI() {
             }
         }
 
-        // 2) lista de servidores con el link embebido en un atributo data-*
-        doc.select("ul.TPlayerNv li, li[data-video], li[data-server]").forEach { server ->
-            val embed = server.attr("data-video").ifBlank { server.attr("data-server") }
-            if (embed.isNotBlank()) {
-                try {
-                    loadExtractor(fixUrl(embed), data, subtitleCallback, callback)
-                    found = true
-                } catch (e: Exception) {
-                    // Un servidor caído no debe tumbar al resto
-                }
+        // Fallback: buscar un .m3u8 embebido directamente en algún <script>
+        if (!found) {
+            val m3u8 = Regex("https?://[^\"'\\s]+\\.m3u8[^\"'\\s]*")
+                .find(doc.html())?.value
+            if (m3u8 != null) {
+                loadExtractor(m3u8, data, subtitleCallback, callback)
+                found = true
             }
         }
 
         return found
     }
-}
-
-class CuevanaProvider : CuevanaCloneProvider() {
-    override var mainUrl = "https://cuevana.com.es"
-    override var name = "Cuevana"
-}
-
-class Cuevana3Provider : CuevanaCloneProvider() {
-    override var mainUrl = "https://cuevana3.gs"
-    override var name = "Cuevana3"
 }

@@ -4,7 +4,7 @@ version = 1
 cloudstream {
     // All of these properties are optional, you can safely remove any of them.
 
-    description = "Películas y series en español latino: PelisPlusHD y Cuevana"
+    description = "Películas y series en español latino: Cuevana, Cuevana3 y LookMovie"
     authors = listOf("fbientrigo")
 
     /**
@@ -24,5 +24,5 @@ cloudstream {
     language = "es"
 
     // Random favicon, cámbialo si tienes uno propio
-    iconUrl = "http://www.google.com/s2/favicons?domain=pelisplushd.mx"
+    iconUrl = "http://www.google.com/s2/favicons?domain=cuevana3.gs"
 }
