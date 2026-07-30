@@ -1,9 +1,14 @@
 name: Build
 
 # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#concurrency
-concurrency: 
+concurrency:
   group: "build"
   cancel-in-progress: true
+
+# El GITHUB_TOKEN por defecto es de solo lectura; sin esto, el push a builds
+# se rechaza con 403.
+permissions:
+  contents: write
 
 on:
   push:
