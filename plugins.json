@@ -1,0 +1,23 @@
+[
+    {
+        "iconUrl": "http://www.google.com/s2/favicons?domain=cuevana3.gs",
+        "fileHash": "sha256-a761f0c7f97d80a1a3f8d2ce591da8338b1069f38cbfc6aba8be039a331b9673",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/fbientrigo/stream",
+        "fileSize": 19669,
+        "status": 3,
+        "language": "es",
+        "authors": [
+            "fbientrigo"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "EspanolLatinoProvider",
+        "description": "Pel\u00edculas y series en espa\u00f1ol latino: Cuevana, Cuevana3 y LookMovie",
+        "url": "https://raw.githubusercontent.com/fbientrigo/stream/builds/EspanolLatinoProvider.cs3",
+        "name": "EspanolLatinoProvider"
+    }
+]
