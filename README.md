@@ -10,7 +10,7 @@ Repositorio de plugins en español para [Cloudstream](https://github.com/recloud
 Para instalar este repo, ve a `Configuración > Extensiones > Agregar repositorio` en la app de Cloudstream y pega este link:
 
 ```
-https://raw.githubusercontent.com/fbientrigo/stream/master/repo.json
+https://raw.githubusercontent.com/fbientrigo/stream/main/repo.json
 ```
 
 Cloudstream leerá `repo.json`, que apunta a la lista de plugins ya compilados (`plugins.json`) publicada en la rama [`builds`](https://github.com/fbientrigo/stream/tree/builds). Esa rama la genera automáticamente el workflow de GitHub Actions en cada push a `main`.
